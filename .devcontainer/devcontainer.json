@@ -1,0 +1,14 @@
+{ 
+    "name": "Python tf-agents", 
+    "build": { 
+        "dockerfile": "Dockerfile", 
+        "context": "../src", 
+         //Update 'VARIANT' to pick a Python version: 3, 3.6, 3.7, 3.8 
+        "args": {"VARIANT": "3.8"} 
+    },
+    "extensions": [
+		"ms-python.python",
+        "ms-python.vscode-pylance"
+	],
+
+}
