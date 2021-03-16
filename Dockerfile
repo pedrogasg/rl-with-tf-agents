@@ -30,5 +30,5 @@ RUN pip install tf-agents
 WORKDIR /gym
 
 COPY ./src .
-#CMD [ "python", "cartpole/random_move.py" ]
+#CMD [ "python", "./random_policy.py" ]
 CMD [ "python", "./run.py" ]
