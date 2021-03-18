@@ -61,7 +61,7 @@ if __name__ == '__main__':
     num_actions = action_tensor_spec.maximum - action_tensor_spec.minimum + 1
     
     strategy = strategy_utils.get_strategy(tpu=False, use_gpu=True)
-
+    
     dense_layers = [Dense(
         num_units,
         activation=relu,
@@ -78,22 +78,23 @@ if __name__ == '__main__':
 
     q_net = Sequential(dense_layers + [q_values_layer])
 
-     
+    
     optimizer = Adam(learning_rate=learning_rate)
 
     train_step_counter = tf.Variable(0)
 
-    agent = DqnAgent(env.time_step_spec(), env.action_spec(), q_network=q_net, optimizer=optimizer, td_errors_loss_fn=common.element_wise_squared_loss, train_step_counter=train_step_counter)
+    with strategy.scope():
+        agent = DqnAgent(env.time_step_spec(), env.action_spec(), q_network=q_net, optimizer=optimizer, td_errors_loss_fn=common.element_wise_squared_loss, train_step_counter=train_step_counter)
 
     policy = agent.policy
     
     replay_buffer = TFUniformReplayBuffer(data_spec=agent.collect_data_spec, batch_size=env.batch_size, max_length=replay_buffer_capacity)
-
+    
+    
     agent.train = common.function(agent.train)
 
     agent.train_step_counter.assign(0)
-
-    replay_observer = [replay_buffer.add_batch]
+    
     def collect_step(environment, policy, buffer):
         time_step = environment.current_time_step()
         action_step = policy.action(time_step)
@@ -102,29 +103,37 @@ if __name__ == '__main__':
 
         # Add trajectory to the replay buffer
         buffer.add_batch(traj)
-
+    
     def collect_data(env, policy, buffer, steps):
         for _ in range(steps):
             collect_step(env, policy, buffer)
 
     #driver = DynamicEpisodeDriver(env, policy, replay_observer, num_episodes=collect_episodes_per_iteration)
+
     random_policy = RandomTFPolicy(env.time_step_spec(), env.action_spec())
+
     collect_data(env, random_policy, replay_buffer, 100)
-    
+
     dataset = replay_buffer.as_dataset(
         num_parallel_calls=3, 
         sample_batch_size=env.batch_size, 
         num_steps=2).prefetch(3)
 
     iterator = iter(dataset)
+
     collect_data(env, agent.collect_policy, replay_buffer, 2)
     #final_time_step, policy_state = driver.run()
+
+    def _reduce_loss(loss):
+      return strategy.reduce(tf.distribute.ReduceOp.SUM, loss, axis=None)
     
     for _ in range(num_iterations):
         #final_time_step, policy_state = driver.run(final_time_step, policy_state)
+
         collect_data(env, agent.collect_policy, replay_buffer, 2)
         experience, _ = next(iterator)
-        train_loss = agent.train(experience)
+        loss_info = strategy.run(agent.train, args=(experience,))
+        train_loss = tf.nest.map_structure(_reduce_loss, loss_info)
         replay_buffer.clear()
         step = agent.train_step_counter.numpy()
 
