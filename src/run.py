@@ -1,9 +1,5 @@
 
-import gym
-
 from utils import compute_avg_return
-
-import numpy as np
 
 import tensorflow as tf
 
@@ -12,39 +8,30 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.activations import relu
 from tensorflow.keras.initializers import VarianceScaling, RandomUniform, Constant
 
-from tf_agents.environments import suite_gym
-
 from tf_agents.utils import common
-
-from tf_agents.trajectories import trajectory
-
-from tf_agents.environments import tf_py_environment
-
+from tf_agents.specs import tensor_spec
 from tf_agents.train.learner import Learner
-
+from tf_agents.environments import suite_gym
+from tf_agents.train.utils import train_utils
+from tf_agents.drivers.tf_driver import TFDriver
+from tf_agents.train.utils import strategy_utils
 from tf_agents.agents.dqn.dqn_agent import DqnAgent
-
-from tf_agents.policies.random_tf_policy import RandomTFPolicy
-
+from tf_agents.networks.sequential import Sequential
+from tf_agents.environments import tf_py_environment
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 
-from tf_agents.drivers.dynamic_episode_driver import DynamicEpisodeDriver
-
-from tf_agents.train.utils import strategy_utils
-
-from tf_agents.train.utils import train_utils
-
-from tf_agents.specs import tensor_spec
-
-from tf_agents.networks.sequential import Sequential
+from tf_agents.policies import random_tf_policy
+from tf_agents.trajectories import trajectory
 
 if __name__ == '__main__':
-    
+
+    #seed = 1234
     py_env = suite_gym.load('CartPole-v0')
+    #py_env.seed(seed)
+    #tf.random.set_seed(seed)
     py_env.render(mode="human")
     env = tf_py_environment.TFPyEnvironment(py_env)
-
-
+    
     fc_layer_params = [100,50]
     learning_rate = 1e-3
     episodes_count = 10
@@ -88,6 +75,16 @@ if __name__ == '__main__':
     
     agent.train_step_counter.assign(0)
         
+    replay_observer = [replay_buffer.add_batch]
+    #driver = TFDriver(env, agent.collect_policy, replay_observer, max_steps=2)
+                    
+    #time_step = env.reset()
+    #policy_state = policy.get_initial_state(batch_size=1)
+    #time_step, policy_state = driver.run(time_step, policy_state)
+
+    random_policy = random_tf_policy.RandomTFPolicy(env.time_step_spec(),
+                                                env.action_spec())
+
     def collect_step(environment, policy, buffer):
         time_step = environment.current_time_step()
         action_step = policy.action(time_step)
@@ -96,23 +93,19 @@ if __name__ == '__main__':
 
         # Add trajectory to the replay buffer
         buffer.add_batch(traj)
-    
+
     def collect_data(env, policy, buffer, steps):
         for _ in range(steps):
             collect_step(env, policy, buffer)
 
-    #driver = DynamicEpisodeDriver(env, policy, replay_observer, num_episodes=collect_episodes_per_iteration)
-    
-    random_policy = RandomTFPolicy(env.time_step_spec(), env.action_spec())
-
     collect_data(env, random_policy, replay_buffer, 100)
-
+    
     def experience_fn():
         with strategy.scope():
             return replay_buffer.as_dataset(
                                             num_parallel_calls=3, 
-                                            sample_batch_size=env.batch_size, 
-                                            num_steps=2).prefetch(3)
+                                            sample_batch_size=64, 
+                                            num_steps=2).prefetch(3)    
 
     learner = Learner(
                 '/tmp/models',
@@ -120,17 +113,13 @@ if __name__ == '__main__':
                 agent,
                 experience_fn,
                 strategy=strategy)
-                
-    collect_data(env, agent.collect_policy, replay_buffer, 2)
-        #final_time_step, policy_state = driver.run()
-        
+    #collect_data(env, agent.collect_policy, replay_buffer, 2)
+
     for _ in range(num_iterations):
-        #final_time_step, policy_state = driver.run(final_time_step, policy_state)
-
-        collect_data(env, agent.collect_policy, replay_buffer, 2)
-
+        #time_step = env.reset()
+        #time_step, policy_state = driver.run(time_step, policy_state)
+        collect_data(env, agent.collect_policy, replay_buffer, 1)
         train_loss = learner.run(iterations=1)
-        replay_buffer.clear()
         step = learner.train_step_numpy
 
         if step % log_interval == 0:
@@ -138,7 +127,5 @@ if __name__ == '__main__':
 
         if step % eval_interval == 0:
             compute_avg_return(env, policy, episodes_count)
-        
 
-
-    #TODO    
+ 
