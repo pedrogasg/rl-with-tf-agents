@@ -1,6 +1,4 @@
 
-from utils import compute_avg_return
-
 import tensorflow as tf
 
 from tensorflow.keras.layers import Dense
@@ -19,7 +17,7 @@ from tf_agents.agents.dqn.dqn_agent import DqnAgent
 from tf_agents.networks.sequential import Sequential
 from tf_agents.environments import tf_py_environment
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
-
+from tf_agents.metrics.tf_metrics import AverageReturnMetric
 from tf_agents.policies import random_tf_policy
 
 if __name__ == '__main__':
@@ -77,7 +75,11 @@ if __name__ == '__main__':
     random_policy = random_tf_policy.RandomTFPolicy(env.time_step_spec(),
                                                 env.action_spec())
     random_driver = TFDriver(env, random_policy, replay_observer, max_steps=100, max_episodes=100)         
-    
+    average = AverageReturnMetric()
+    metrics_observer = [average]
+
+    metrics_driver = TFDriver(env, agent.policy, metrics_observer, max_episodes=10)
+
     def experience_fn():
         with strategy.scope():
             return replay_buffer.as_dataset(
@@ -106,6 +108,8 @@ if __name__ == '__main__':
             print('step = {0}: loss = {1}'.format(step, train_loss.loss))
 
         if step % eval_interval == 0:
-            compute_avg_return(env, policy, episodes_count)
+            average.reset()
+            time_step, policy_state = metrics_driver.run(time_step, policy_state)
+            print('The average reward is ', average.result().numpy())
 
  
