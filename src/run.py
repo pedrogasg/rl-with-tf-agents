@@ -19,6 +19,7 @@ from tf_agents.environments import tf_py_environment
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 from tf_agents.metrics.tf_metrics import AverageReturnMetric
 from tf_agents.policies import random_tf_policy
+from drivers import TFRenderDriver
 
 if __name__ == '__main__':
 
@@ -78,7 +79,7 @@ if __name__ == '__main__':
     average = AverageReturnMetric()
     metrics_observer = [average]
 
-    metrics_driver = TFDriver(env, agent.policy, metrics_observer, max_episodes=10)
+    metrics_driver = TFRenderDriver(env, agent.policy, metrics_observer, max_episodes=10)
 
     def experience_fn():
         with strategy.scope():
