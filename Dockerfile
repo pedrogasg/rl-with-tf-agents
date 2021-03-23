@@ -19,13 +19,22 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip \
-  && pip install gym fire tensorflow matplotlib
+  && pip install gym fire matplotlib
 
 RUN pip install pybullet
 
-RUN pip install tensorflow-probability
+RUN pip install tf-nightly
 
-RUN pip install tf-agents
+RUN pip install tfp-nightly
+
+RUN pip install tf-agents-nightly
+
+#RUN apt-get update \
+#  && apt-get install -y -qq --no-install-recommends \
+#    git \
+#  && rm -rf /var/lib/apt/lists/*
+
+#RUN pip install git+https://github.com/pedrogasg/agents@feature/saving-with-keras
 
 WORKDIR /gym
 
