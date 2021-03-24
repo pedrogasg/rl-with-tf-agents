@@ -36,12 +36,12 @@ if __name__ == '__main__':
 
     replay_buffer_capacity = 2000
     learning_rate = 1e-3
-    fc_layer_params = [64,64]
+    fc_layer_params = [128,64,64]
 
-    num_iterations = 1
+    num_iterations = 100
 
-    log_interval = 1
-    eval_interval = 1
+    log_interval = 2
+    eval_interval = 2
 
 
     action_tensor_spec = tensor_spec.from_spec(env.action_spec())
@@ -71,7 +71,8 @@ if __name__ == '__main__':
     agent.train_step_counter.assign(0)
 
     replay_observer = [replay_buffer.add_batch]
-    driver = TFDriver(env, collect_policy, replay_observer, max_episodes=100)
+    with strategy.scope():
+        driver = TFDriver(env, collect_policy, replay_observer, max_episodes=100)
 
     average = AverageReturnMetric()
     metrics_observer = [average]
@@ -96,7 +97,7 @@ if __name__ == '__main__':
     policy_state = policy.get_initial_state(batch_size=1)
     for _ in range(num_iterations):
         time_step, policy_state = driver.run(time_step, policy_state)
-        train_loss = learner.run(iterations=1)
+        train_loss = learner.run(iterations=10)
         step = learner.train_step_numpy
 
         if step % log_interval == 0:
